@@ -1,18 +1,39 @@
 import React, { useState, useEffect } from 'react'
 import { getChannel, useChatContext } from 'stream-chat-react'
 import { SearchIcon } from "../assets"
+import ResultsDropdown from './ResultsDropDown';
 
 
-
-
-function ChannelSearch() {
+function ChannelSearch({ setToogleContainer }) {
+    const { client, setActiveChannel } = useChatContext()
     const [query, setQuery] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [teamChannels, setTeamChannels] = useState([])
+    const [directChannels, setDirectChannels] = useState([])
+
+    useEffect(() => {
+        if (!query) {
+            setTeamChannels([])
+            setDirectChannels([])
+        }
+    }, [])
 
 
     const getChannels = async (text) => {
         try {
-            //! Fetch Channels
+            const channelResponse = client.queryChannels({
+                type: "team",
+                name: { $autocomplete: text },
+                members: { $in: [client.userID] }
+            })
+            const usersResponse = client.queryUsers({
+                id: { $ne: client.userID },
+                name: { $autocomplete: text }
+            })
+            const [channels, { users }] = await Promise.all([channelResponse, usersResponse]);
+
+            if (channels.length) setTeamChannels(channels)
+            if (users.length) setDirectChannels(users)
 
         } catch (error) {
             setQuery("");
@@ -27,7 +48,10 @@ function ChannelSearch() {
         getChannels(e.target.value)
     }
 
-
+    const setChannel = (channel) => {
+        setQuery("")
+        setActiveChannel(channel)
+    }
 
     return (
         <div className="channel-search__container">
@@ -39,8 +63,20 @@ function ChannelSearch() {
                     placeholder='Search'
                     type="text"
                     value={query}
-                    onChange={onSearch} />
+                    onChange={onSearch}
+                />
             </div>
+            {query && (
+                <ResultsDropdown
+                    teamChannels={teamChannels}
+                    directChannels={directChannels}
+                    isLoading={isLoading}
+                    setChannel={setChannel}
+                    setQuery={setQuery}
+                    setToogleContainer={setToogleContainer}
+
+                />
+            )}
         </div>
     )
 }
